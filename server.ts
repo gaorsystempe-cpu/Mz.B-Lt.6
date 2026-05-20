@@ -13,13 +13,41 @@ const supabaseSchema = process.env.SUPABASE_SCHEMA || "polo";
 const useSupabase = Boolean(supabaseUrl && supabaseKey);
 
 let supabase: any = null;
+let supabasePublic: any = null;
+let activeSchema = supabaseSchema;
+
 if (useSupabase) {
-  console.log(`Connecting to Supabase at: ${supabaseUrl} (Schema: ${supabaseSchema})`);
+  console.log(`Connecting to Supabase at: ${supabaseUrl} (Initial custom Schema: ${supabaseSchema})`);
   supabase = createClient(supabaseUrl, supabaseKey, {
     db: {
       schema: supabaseSchema
     }
   });
+  supabasePublic = createClient(supabaseUrl, supabaseKey); // Defaults to 'public' schema
+
+  if (supabaseSchema !== "public") {
+    // Perform early background test on custom schema availability
+    supabase.from("settings").select("id").limit(1).then(({ error }: any) => {
+      if (error && error.message?.includes("Invalid schema")) {
+        console.error(`\n======================================================`);
+        console.error(`🔴 ERROR DE CONEXIÓN CON SUPABASE SCHEMA '${supabaseSchema}'!`);
+        console.error(`El schema '${supabaseSchema}' no está expuesto en las opciones de la API de tu proyecto.`);
+        console.error(`COMO SOLUCIONARLO EN EL DASHBOARD DE SUPABASE:`);
+        console.error(`1. Ve a: Settings (Icono de engranaje) -> API`);
+        console.error(`2. Busca la sección 'Exposed schemas'`);
+        console.error(`3. Agrega '${supabaseSchema}' a la lista de schemas expuestos junto con 'public'`);
+        console.error(`4. Haz clic en guardar/actualizar cambios.`);
+        console.error(`======================================================\n`);
+        console.log(`[Supabase Fallback] Redireccionando consultas temporalmente al schema 'public' para evitar caídas...`);
+        supabase = supabasePublic;
+        activeSchema = "public";
+      } else {
+        console.log(`[Supabase] Conectado exitosamente al schema '${supabaseSchema}'!`);
+      }
+    }).catch((e: any) => {
+      console.error("[Supabase Check Error]", e);
+    });
+  }
 } else {
   console.log("No Supabase configuration found. Using in-memory fallback database.");
 }
@@ -34,24 +62,160 @@ async function resolveTableName(baseName: "products" | "orders" | "settings"): P
   
   if (!supabase) return baseName;
 
-  // 1. Try prefixed name: e.g. polo_products, polo_orders, polo_settings
+  // 1. Try base name directly first: e.g. products, orders, settings (preferred for custom schemas like polo)
+  try {
+    const { error } = await supabase.from(baseName).select("*").limit(1);
+    
+    if (error && error.message?.includes("Invalid schema")) {
+      console.warn(`[Supabase Fallback] Schema '${activeSchema}' retornó 'Invalid schema'. Usando schema 'public'...`);
+      supabase = supabasePublic;
+      activeSchema = "public";
+      return await resolveTableName(baseName);
+    }
+
+    const hasError = error && (error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("does not exist in schema"));
+    if (!hasError) {
+      tableNameCache[baseName] = baseName;
+      console.log(`Supabase table resolved directly inside '${activeSchema}': table '${baseName}'`);
+      return baseName;
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  // 2. Try prefixed name: e.g. polo_products, polo_orders, polo_settings
   const prefixedName = `polo_${baseName}`;
   try {
     const { error } = await supabase.from(prefixedName).select("*").limit(1);
-    const hasError = error && (error.message?.includes("Could not find the table") || error.message?.includes("does not exist"));
+    
+    if (error && error.message?.includes("Invalid schema")) {
+      console.warn(`[Supabase Fallback] Schema '${activeSchema}' retornó 'Invalid schema' en prefijo. Usando schema 'public'...`);
+      supabase = supabasePublic;
+      activeSchema = "public";
+      return await resolveTableName(baseName);
+    }
+
+    const hasError = error && (error.message?.includes("Could not find the table") || error.message?.includes("does not exist") || error.message?.includes("does not exist in schema"));
     if (!hasError) {
       tableNameCache[baseName] = prefixedName;
-      console.log(`Supabase table resolved: schema '${supabaseSchema}', table '${prefixedName}'`);
+      console.log(`Supabase table resolved: schema '${activeSchema}', table '${prefixedName}'`);
       return prefixedName;
     }
   } catch (err) {
     // ignore and let it fall back
   }
 
-  // 2. Fallback to base name: products, orders, settings
+  // 3. Fallback to base name: products, orders, settings
   tableNameCache[baseName] = baseName;
-  console.log(`Supabase table resolved: schema '${supabaseSchema}', table '${baseName}'`);
+  console.log(`Supabase table resolved (fallback): schema '${activeSchema}', table '${baseName}'`);
   return baseName;
+}
+
+// --- DB Mapping Helpers (resolves lowercase Postgres column names mapping) ---
+
+function mapSettingsToDB(js: any): any {
+  if (!js) return js;
+  const db: any = {};
+  if (js.id !== undefined) db.id = js.id;
+  if (js.logoUrl !== undefined) db.logourl = js.logoUrl;
+  if (js.brandName !== undefined) db.brandname = js.brandName;
+  if (js.brandSubtitle !== undefined) db.brandsubtitle = js.brandSubtitle;
+  if (js.contactPhone !== undefined) db.contactphone = js.contactPhone;
+  if (js.yapeNumber !== undefined) db.yapenumber = js.yapeNumber;
+  if (js.yapeTitular !== undefined) db.yapetitular = js.yapeTitular;
+  if (js.whatsappLink !== undefined) db.whatsapplink = js.whatsappLink;
+  if (js.instagramLink !== undefined) db.instagramlink = js.instagramLink;
+  if (js.tiktokLink !== undefined) db.tiktoklink = js.tiktokLink;
+  if (js.heroTitle !== undefined) db.herotitle = js.heroTitle;
+  if (js.heroSubtitle !== undefined) db.herosubtitle = js.heroSubtitle;
+  if (js.heroImages !== undefined) db.heroimages = js.heroImages;
+  if (js.qrCodeUrl !== undefined) db.qrcodeurl = js.qrCodeUrl;
+  if (js.adminPassword !== undefined) db.adminpassword = js.adminPassword;
+  return db;
+}
+
+function mapSettingsToJS(db: any): any {
+  if (!db) return db;
+  return {
+    id: db.id,
+    logoUrl: db.logourl || db.logoUrl || '',
+    brandName: db.brandname || db.brandName || '',
+    brandSubtitle: db.brandsubtitle || db.brandSubtitle || '',
+    contactPhone: db.contactphone || db.contactPhone || '',
+    yapeNumber: db.yapenumber || db.yapeNumber || '',
+    yapeTitular: db.yapetitular || db.yapeTitular || '',
+    whatsappLink: db.whatsapplink || db.whatsappLink || '',
+    instagramLink: db.instagramlink || db.instagramLink || '',
+    tiktokLink: db.tiktoklink || db.tiktokLink || '',
+    heroTitle: db.herotitle || db.heroTitle || '',
+    heroSubtitle: db.herosubtitle || db.heroSubtitle || '',
+    heroImages: db.heroimages || db.heroImages || [],
+    qrCodeUrl: db.qrcodeurl || db.qrCodeUrl || '',
+    adminPassword: db.adminpassword || db.adminPassword || ''
+  };
+}
+
+function mapProductToDB(js: any): any {
+  if (!js) return js;
+  const db: any = {};
+  if (js.id !== undefined) db.id = js.id;
+  if (js.name !== undefined) db.name = js.name;
+  if (js.description !== undefined) db.description = js.description;
+  if (js.price !== undefined) db.price = js.price;
+  if (js.imageUrl !== undefined) db.imageurl = js.imageUrl;
+  if (js.images !== undefined) db.images = js.images;
+  if (js.category !== undefined) db.category = js.category;
+  if (js.colors !== undefined) db.colors = js.colors;
+  return db;
+}
+
+function mapProductToJS(db: any): any {
+  if (!db) return db;
+  return {
+    id: db.id,
+    name: db.name,
+    description: db.description || '',
+    price: typeof db.price === 'string' ? parseFloat(db.price) : (db.price || 0),
+    imageUrl: db.imageurl || db.imageUrl || '',
+    images: db.images || db.images || [],
+    category: db.category || '',
+    colors: db.colors || db.colors || [],
+    created_at: db.created_at
+  };
+}
+
+function mapOrderToDB(js: any): any {
+  if (!js) return js;
+  const db: any = {};
+  if (js.id !== undefined) db.id = js.id;
+  if (js.customerName !== undefined) db.customername = js.customerName;
+  if (js.customerPhone !== undefined) db.customerphone = js.customerPhone;
+  if (js.address !== undefined) db.address = js.address;
+  if (js.items !== undefined) db.items = js.items;
+  if (js.total !== undefined) db.total = js.total;
+  if (js.paymentMethod !== undefined) db.paymentmethod = js.paymentMethod;
+  if (js.transactionId !== undefined) db.transactionid = js.transactionId;
+  if (js.status !== undefined) db.status = js.status;
+  if (js.notes !== undefined) db.notes = js.notes;
+  if (js.createdAt !== undefined) db.createdat = js.createdAt;
+  return db;
+}
+
+function mapOrderToJS(db: any): any {
+  if (!db) return db;
+  return {
+    id: db.id,
+    customerName: db.customername || db.customerName || '',
+    customerPhone: db.customerphone || db.customerPhone || '',
+    address: db.address || '',
+    items: db.items || db.items || [],
+    total: typeof db.total === 'string' ? parseFloat(db.total) : (db.total || 0),
+    paymentMethod: db.paymentmethod || db.paymentMethod || 'direct',
+    transactionId: db.transactionid || db.transactionId || '',
+    status: db.status || db.status || 'pending',
+    notes: db.notes || '',
+    createdAt: db.createdat || db.createdAt || new Date().toISOString()
+  };
 }
 
 
@@ -188,7 +352,8 @@ async function startServer() {
           .select("*")
           .order("created_at", { ascending: true });
         if (error) throw error;
-        res.json(data || []);
+        const mapped = (data || []).map(mapProductToJS);
+        res.json(mapped);
       } catch (err: any) {
         console.error("Supabase Error [GET /api/products]:", err.message || err);
         res.json(products);
@@ -205,13 +370,14 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const table = await resolveTableName("products");
+        const dbProduct = mapProductToDB(newProduct);
         const { data, error } = await supabase
           .from(table)
-          .insert([newProduct])
+          .insert([dbProduct])
           .select()
           .single();
         if (error) throw error;
-        res.status(201).json(data);
+        res.status(201).json(mapProductToJS(data));
       } catch (err: any) {
         console.error("Supabase Error [POST /api/products]:", err.message || err);
         products.push(newProduct);
@@ -228,14 +394,15 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const table = await resolveTableName("products");
+        const dbProduct = mapProductToDB(req.body);
         const { data, error } = await supabase
           .from(table)
-          .update(req.body)
+          .update(dbProduct)
           .eq("id", id)
           .select()
           .single();
         if (error) throw error;
-        res.json(data);
+        res.json(mapProductToJS(data));
       } catch (err: any) {
         console.error(`Supabase Error [PUT /api/products/${id}]:`, err.message || err);
         const index = products.findIndex(p => p.id === id);
@@ -297,9 +464,10 @@ async function startServer() {
         const { data, error } = await supabase
           .from(table)
           .select("*")
-          .order("createdAt", { ascending: false });
+          .order("createdat", { ascending: false });
         if (error) throw error;
-        res.json(data || []);
+        const mapped = (data || []).map(mapOrderToJS);
+        res.json(mapped);
       } catch (err: any) {
         console.error("Supabase Error [GET /api/orders]:", err.message || err);
         res.json(orders);
@@ -320,13 +488,14 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const table = await resolveTableName("orders");
+        const dbOrder = mapOrderToDB(newOrder);
         const { data, error } = await supabase
           .from(table)
-          .insert([newOrder])
+          .insert([dbOrder])
           .select()
           .single();
         if (error) throw error;
-        res.status(201).json(data);
+        res.status(201).json(mapOrderToJS(data));
       } catch (err: any) {
         console.error("Supabase Error [POST /api/orders]:", err.message || err);
         orders.push(newOrder);
@@ -343,14 +512,15 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const table = await resolveTableName("orders");
+        const dbOrder = mapOrderToDB(req.body);
         const { data, error } = await supabase
           .from(table)
-          .update(req.body)
+          .update(dbOrder)
           .eq("id", id)
           .select()
           .single();
         if (error) throw error;
-        res.json(data);
+        res.json(mapOrderToJS(data));
       } catch (err: any) {
         console.error(`Supabase Error [PUT /api/orders/${id}]:`, err.message || err);
         const index = orders.findIndex(o => o.id === id);
@@ -417,15 +587,16 @@ async function startServer() {
         if (error) throw error;
         
         if (!data) {
+          const dbSettings = mapSettingsToDB(settings);
           const { data: inserted, error: insError } = await supabase
             .from(table)
-            .insert([{ id: "global_config", ...settings }])
+            .insert([{ id: "global_config", ...dbSettings }])
             .select()
             .single();
           if (insError) throw insError;
-          res.json(inserted);
+          res.json(mapSettingsToJS(inserted));
         } else {
-          res.json(data);
+          res.json(mapSettingsToJS(data));
         }
       } catch (err: any) {
         console.error("Supabase Error [GET /api/settings]:", err.message || err);
@@ -440,18 +611,18 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const table = await resolveTableName("settings");
+        const dbSettings = mapSettingsToDB(req.body);
         const { data, error } = await supabase
           .from(table)
-          .update(req.body)
+          .update(dbSettings)
           .eq("id", "global_config")
           .select()
           .single();
         if (error) throw error;
-        res.json(data);
+        res.json(mapSettingsToJS(data));
       } catch (err: any) {
         console.error("Supabase Error [PUT /api/settings]:", err.message || err);
-        settings = { ...settings, ...req.body };
-        res.json(settings);
+        res.status(500).json({ error: err.message || "Error al guardar ajustes" });
       }
     } else {
       settings = { ...settings, ...req.body };
