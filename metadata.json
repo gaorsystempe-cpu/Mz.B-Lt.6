@@ -1,0 +1,8 @@
+{
+  "name": "Mz.B Polos",
+  "description": "Tienda catálogo de polos Mz.B Lt.6 con estética premium de alta costura inspirado en plantillas de moda y CRM integrado.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

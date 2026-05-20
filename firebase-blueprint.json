@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Polo": {
+      "title": "Polo",
+      "description": "Represents a product item in the store.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "images": { "type": "array" },
+        "category": { "type": "string" },
+        "colors": { "type": "array" }
+      },
+      "required": ["name", "price", "imageUrl", "category", "colors"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Represents a purchase order.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["direct", "whatsapp"] },
+        "transactionId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "shipped", "delivered"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "phone", "address", "items", "total", "paymentMethod", "status", "createdAt"]
+    },
+    "Config": {
+      "title": "Config",
+      "description": "Global application settings.",
+      "type": "object",
+      "properties": {
+        "logoUrl": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "yapeNumber": { "type": "string" },
+        "yapeTitular": { "type": "string" },
+        "whatsappLink": { "type": "string" },
+        "instagramLink": { "type": "string" },
+        "tiktokLink": { "type": "string" },
+        "heroTitle": { "type": "string" },
+        "heroSubtitle": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "products": {
+      "schema": "Polo",
+      "description": "Store products collection."
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "Customer orders collection."
+    },
+    "settings": {
+      "schema": "Config",
+      "description": "App configuration document(s)."
+    }
+  }
+}
