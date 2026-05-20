@@ -10,6 +10,78 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
+const compressImage = (base64Str: string, maxWidth = 1024, maxHeight = 1024, quality = 0.75): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!base64Str || !base64Str.startsWith('data:image/')) {
+      resolve(base64Str);
+      return;
+    }
+    // If the image is already less than ~80KB, do not touch it
+    if (base64Str.length < 100000) {
+      resolve(base64Str);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(base64Str);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      // Convert to compressed jpeg format
+      const compressed = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressed);
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+};
+
+const resolvePostimgUrl = (url: string): string => {
+  if (!url) return url;
+  const trimmed = url.trim();
+
+  // If already a direct image link format on Postimages, return unmodified
+  if (trimmed.includes('i.postimg.cc')) {
+    return trimmed;
+  }
+
+  // Regex to match standard Postimages viewer URLs:
+  // e.g. https://postimg.cc/mhcVcxJz, https://postimages.org/mhcVcxJz
+  const postimgRegex = /https?:\/\/(?:[a-zA-Z0-9-]+\.)?(postimg\.cc|postimages\.org)\/([a-zA-Z0-9]+)(?:\/[^\s]*)?/i;
+  const match = trimmed.match(postimgRegex);
+  
+  if (match) {
+    const id = match[2];
+    return `https://i.postimg.cc/${id}/image.png`;
+  }
+  return trimmed;
+};
+
 export function AdminPage() {
   const DEFAULT_SETTINGS: AppSettings = {
     logoUrl: '',
@@ -129,7 +201,31 @@ export function AdminPage() {
     setLoading(true);
     try {
       const cleanHeroImages = (settings.heroImages || []).filter(img => img && img.trim() !== '');
-      const settingsToSave = { ...settings, heroImages: cleanHeroImages };
+      
+      // Auto-resolve any Postimg viewer URLs before saving
+      const resolvedLogo = resolvePostimgUrl(settings.logoUrl || '');
+      const resolvedQR = resolvePostimgUrl(settings.qrCodeUrl || '');
+      const resolvedHeroList = cleanHeroImages.map(img => resolvePostimgUrl(img));
+
+      // Smart background compression for safety (if they are using local base64 uploads)
+      const compressedLogo = resolvedLogo ? await compressImage(resolvedLogo) : '';
+      const compressedQR = resolvedQR ? await compressImage(resolvedQR) : '';
+      const finalHeroList: string[] = [];
+      for (const img of resolvedHeroList) {
+        if (img && img.startsWith('data:image/')) {
+          finalHeroList.push(await compressImage(img));
+        } else {
+          finalHeroList.push(img);
+        }
+      }
+
+      const settingsToSave = { 
+        ...settings, 
+        logoUrl: compressedLogo,
+        qrCodeUrl: compressedQR,
+        heroImages: finalHeroList 
+      };
+
       const updated = await apiService.updateSettings(settingsToSave);
       setSettings(updated);
       alert("¡Configuración guardada súper exitosamente!");
@@ -212,13 +308,21 @@ export function AdminPage() {
       return;
     }
 
+    // Auto-resolve any Postimg viewer URLs before saving
+    const resolvedProdImageUrl = resolvePostimgUrl(
+      prodImageUrl || 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&q=80&w=800'
+    );
+    const resolvedProdImages = prodImages
+      .filter(img => img.trim() !== '')
+      .map(img => resolvePostimgUrl(img));
+
     const payload: Partial<Polo> = {
       name: prodName,
       description: prodDesc,
       price: Number(prodPrice),
       category: prodCategory,
-      imageUrl: prodImageUrl || 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&q=80&w=800',
-      images: prodImages.filter(img => img.trim() !== ''),
+      imageUrl: resolvedProdImageUrl,
+      images: resolvedProdImages,
       colors: prodColors
     };
 
@@ -935,7 +1039,7 @@ export function AdminPage() {
                             />
                             {prodImageUrl && (
                               <div className="mt-2 w-16 h-20 bg-neutral-50 rounded-lg overflow-hidden border">
-                                <img src={prodImageUrl} alt="preview" className="w-full h-full object-cover" />
+                                <img src={resolvePostimgUrl(prodImageUrl)} alt="preview" className="w-full h-full object-cover" />
                               </div>
                             )}
                           </div>
@@ -1164,9 +1268,10 @@ export function AdminPage() {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
                                 const reader = new FileReader();
-                                reader.onloadend = () => {
+                                reader.onloadend = async () => {
                                   if (typeof reader.result === 'string') {
-                                    setSettings({ ...settings, logoUrl: reader.result });
+                                    const compressed = await compressImage(reader.result);
+                                    setSettings({ ...settings, logoUrl: compressed });
                                   }
                                 };
                                 reader.readAsDataURL(file);
@@ -1179,7 +1284,7 @@ export function AdminPage() {
                       {settings.logoUrl && (
                         <div className="mt-2 flex items-center gap-3 bg-neutral-50 p-2.5 rounded-2xl border border-black/[0.02]">
                           <div className="w-12 h-12 bg-black p-1 rounded-xl shrink-0 flex items-center justify-center">
-                            <img src={settings.logoUrl} alt="logo preview" className="w-full h-full object-contain" />
+                            <img src={resolvePostimgUrl(settings.logoUrl)} alt="logo preview" className="w-full h-full object-contain" />
                           </div>
                           <div className="text-left">
                             <p className="text-[9px] font-black uppercase text-neutral-800 leading-none">PREVISUALIZACIÓN LOGO</p>
@@ -1326,7 +1431,7 @@ export function AdminPage() {
                             </div>
                             {img && (
                               <div className="aspect-[16/9] rounded-xl overflow-hidden border">
-                                <img src={img} alt="preview" className="w-full h-full object-cover" />
+                                <img src={resolvePostimgUrl(img)} alt="preview" className="w-full h-full object-cover" />
                               </div>
                             )}
                           </div>
@@ -1378,7 +1483,7 @@ export function AdminPage() {
                       <div className="md:col-span-3 bg-neutral-50 p-5 rounded-3xl border border-black/[0.015] flex flex-col md:flex-row items-center gap-5">
                         <div className="w-24 h-24 bg-white border rounded-2xl overflow-hidden shrink-0 flex items-center justify-center p-1.5 shadow-sm">
                           {settings.qrCodeUrl ? (
-                            <img src={settings.qrCodeUrl} alt="Yape QR" className="w-full h-full object-contain" />
+                            <img src={resolvePostimgUrl(settings.qrCodeUrl)} alt="Yape QR" className="w-full h-full object-contain" />
                           ) : (
                             <ImageIcon className="w-10 h-10 text-neutral-300" />
                           )}
@@ -1403,9 +1508,10 @@ export function AdminPage() {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
                                 const reader = new FileReader();
-                                reader.onloadend = () => {
+                                reader.onloadend = async () => {
                                   if (typeof reader.result === 'string') {
-                                    setSettings({ ...settings, qrCodeUrl: reader.result });
+                                    const compressed = await compressImage(reader.result);
+                                    setSettings({ ...settings, qrCodeUrl: compressed });
                                   }
                                 };
                                 reader.readAsDataURL(file);
