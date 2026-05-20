@@ -1,11 +1,9 @@
--- SQL Script to set up the Supabase Database on your VPS
--- This creates the schema "polo", the required tables, and seeds the initial data.
+-- SQL Script to set up the Supabase Database on your VPS in the default "public" schema
+-- This avoids the "Invalid schema: polo" error completely, since the "public" schema is exposed by default.
+-- Run this in your Supabase SQL Editor!
 
--- 1. CREATE SCHEMA
-CREATE SCHEMA IF NOT EXISTS polo;
-
--- 2. CREATE PRODUCTS TABLE
-CREATE TABLE IF NOT EXISTS polo.products (
+-- 1. CREATE TABLES (with polo_ prefix in public schema to avoid any conflicts)
+CREATE TABLE IF NOT EXISTS public.polo_products (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
@@ -17,8 +15,8 @@ CREATE TABLE IF NOT EXISTS polo.products (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. CREATE ORDERS TABLE
-CREATE TABLE IF NOT EXISTS polo.orders (
+-- 2. CREATE ORDERS TABLE (with polo_ prefix in public schema)
+CREATE TABLE IF NOT EXISTS public.polo_orders (
     id TEXT PRIMARY KEY,
     customerName TEXT NOT NULL,
     customerPhone TEXT NOT NULL,
@@ -32,8 +30,8 @@ CREATE TABLE IF NOT EXISTS polo.orders (
     createdAt TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. CREATE APP SETTINGS TABLE
-CREATE TABLE IF NOT EXISTS polo.settings (
+-- 3. CREATE APP SETTINGS TABLE (with polo_ prefix in public schema)
+CREATE TABLE IF NOT EXISTS public.polo_settings (
     id TEXT PRIMARY KEY DEFAULT 'global_config', -- Only 1 active row for global app configuration
     logoUrl TEXT,
     brandName TEXT NOT NULL DEFAULT 'Mz.B',
@@ -52,8 +50,8 @@ CREATE TABLE IF NOT EXISTS polo.settings (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. SEED INITIAL PRODUCTS
-INSERT INTO polo.products (id, name, description, price, imageUrl, images, category, colors)
+-- 4. SEED INITIAL PRODUCTS
+INSERT INTO public.polo_products (id, name, description, price, imageUrl, images, category, colors)
 VALUES 
 (
   'p1', 
@@ -87,8 +85,8 @@ VALUES
 )
 ON CONFLICT (id) DO NOTHING;
 
--- 6. SEED INITIAL GLOBAL CONFIGURATION
-INSERT INTO polo.settings (id, logoUrl, brandName, brandSubtitle, contactPhone, yapeNumber, yapeTitular, whatsappLink, instagramLink, tiktokLink, heroTitle, heroSubtitle, heroImages, qrCodeUrl, adminPassword)
+-- 5. SEED INITIAL GLOBAL CONFIGURATION
+INSERT INTO public.polo_settings (id, logoUrl, brandName, brandSubtitle, contactPhone, yapeNumber, yapeTitular, whatsappLink, instagramLink, tiktokLink, heroTitle, heroSubtitle, heroImages, qrCodeUrl, adminPassword)
 VALUES 
 (
   'global_config',

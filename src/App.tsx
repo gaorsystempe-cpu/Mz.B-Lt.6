@@ -1216,6 +1216,12 @@ export default function App() {
     fetchInitialData();
   }, []);
 
+  useEffect(() => {
+    if (settings) {
+      document.title = `${settings.brandName} ${settings.brandSubtitle || ''} • Streetwear Authentic`.trim();
+    }
+  }, [settings]);
+
   return (
     <Router>
       <div className="min-h-screen bg-[#FAFAFA]">

@@ -13,12 +13,8 @@ const useSupabase = Boolean(supabaseUrl && supabaseKey);
 
 let supabase: any = null;
 if (useSupabase) {
-  console.log(`Connecting to Supabase at: ${supabaseUrl} (Schema: polo)`);
-  supabase = createClient(supabaseUrl, supabaseKey, {
-    db: {
-      schema: "polo",
-    },
-  });
+  console.log(`Connecting to Supabase at: ${supabaseUrl} (Default schema: public)`);
+  supabase = createClient(supabaseUrl, supabaseKey);
 } else {
   console.log("No Supabase configuration found. Using in-memory fallback database.");
 }
@@ -151,7 +147,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { data, error } = await supabase
-          .from("products")
+          .from("polo_products")
           .select("*")
           .order("created_at", { ascending: true });
         if (error) throw error;
@@ -172,7 +168,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { data, error } = await supabase
-          .from("products")
+          .from("polo_products")
           .insert([newProduct])
           .select()
           .single();
@@ -194,7 +190,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { data, error } = await supabase
-          .from("products")
+          .from("polo_products")
           .update(req.body)
           .eq("id", id)
           .select()
@@ -227,7 +223,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { error } = await supabase
-          .from("products")
+          .from("polo_products")
           .delete()
           .eq("id", id);
         if (error) throw error;
@@ -258,7 +254,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { data, error } = await supabase
-          .from("orders")
+          .from("polo_orders")
           .select("*")
           .order("createdAt", { ascending: false });
         if (error) throw error;
@@ -283,7 +279,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { data, error } = await supabase
-          .from("orders")
+          .from("polo_orders")
           .insert([newOrder])
           .select()
           .single();
@@ -305,7 +301,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { data, error } = await supabase
-          .from("orders")
+          .from("polo_orders")
           .update(req.body)
           .eq("id", id)
           .select()
@@ -338,7 +334,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { error } = await supabase
-          .from("orders")
+          .from("polo_orders")
           .delete()
           .eq("id", id);
         if (error) throw error;
@@ -369,7 +365,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         let { data, error } = await supabase
-          .from("settings")
+          .from("polo_settings")
           .select("*")
           .eq("id", "global_config")
           .maybeSingle();
@@ -377,7 +373,7 @@ async function startServer() {
         
         if (!data) {
           const { data: inserted, error: insError } = await supabase
-            .from("settings")
+            .from("polo_settings")
             .insert([{ id: "global_config", ...settings }])
             .select()
             .single();
@@ -399,7 +395,7 @@ async function startServer() {
     if (useSupabase && supabase) {
       try {
         const { data, error } = await supabase
-          .from("settings")
+          .from("polo_settings")
           .update(req.body)
           .eq("id", "global_config")
           .select()
