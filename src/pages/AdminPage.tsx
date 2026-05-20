@@ -11,7 +11,27 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
 export function AdminPage() {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const DEFAULT_SETTINGS: AppSettings = {
+    logoUrl: '',
+    brandName: 'Mz.B',
+    brandSubtitle: 'Lt.6',
+    contactPhone: '999999999',
+    yapeNumber: '999999999',
+    yapeTitular: 'MARCOS URBANO',
+    whatsappLink: 'https://wa.me/51999999999',
+    instagramLink: 'https://instagram.com/',
+    tiktokLink: 'https://tiktok.com/',
+    heroTitle: 'URBAN SOUL UNIT',
+    heroSubtitle: 'MZ.B LT.6 • TIENDA DE POLOS URBANOS',
+    heroImages: [
+      'https://images.unsplash.com/photo-1558363420-281039867f73?auto=format&fit=crop&q=80&w=1600',
+      'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=1600'
+    ],
+    qrCodeUrl: '',
+    adminPassword: 'admin'
+  };
+
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [products, setProducts] = useState<Polo[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,14 +77,35 @@ export function AdminPage() {
   const refreshAllData = async () => {
     setLoading(true);
     try {
-      const [s, p, o] = await Promise.all([
-        apiService.getSettings(),
-        apiService.getProducts(),
-        fetch("/api/orders").then(r => r.json())
-      ]);
-      setSettings(s);
-      setProducts(p);
-      setOrders(o);
+      try {
+        const s = await apiService.getSettings();
+        if (s && typeof s === 'object') {
+          setSettings(s);
+        }
+      } catch (err) {
+        console.error("Error fetching settings:", err);
+      }
+
+      try {
+        const p = await apiService.getProducts();
+        if (p && Array.isArray(p)) {
+          setProducts(p);
+        }
+      } catch (err) {
+        console.error("Error fetching products:", err);
+      }
+
+      try {
+        const res = await fetch("/api/orders");
+        if (res.ok) {
+          const o = await res.json();
+          if (o && Array.isArray(o)) {
+            setOrders(o);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching orders:", err);
+      }
     } catch (err) {
       console.error("Error fetching admin data:", err);
     } finally {
@@ -1173,17 +1214,32 @@ export function AdminPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Nombre Corto</label>
-                        <input name="brandName" defaultValue={settings.brandName} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-bold" />
+                        <input 
+                          name="brandName" 
+                          value={settings.brandName || ''} 
+                          onChange={(e) => setSettings({ ...settings, brandName: e.target.value })}
+                          className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-bold" 
+                        />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Slogan / Ubicación</label>
-                        <input name="brandSubtitle" defaultValue={settings.brandSubtitle} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-bold" />
+                        <input 
+                          name="brandSubtitle" 
+                          value={settings.brandSubtitle || ''} 
+                          onChange={(e) => setSettings({ ...settings, brandSubtitle: e.target.value })}
+                          className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-bold" 
+                        />
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Teléfono Whatsapp General</label>
-                      <input name="contactPhone" defaultValue={settings.contactPhone} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono" />
+                      <input 
+                        name="contactPhone" 
+                        value={settings.contactPhone || ''} 
+                        onChange={(e) => setSettings({ ...settings, contactPhone: e.target.value })}
+                        className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono" 
+                      />
                     </div>
                   </div>
 
@@ -1193,17 +1249,32 @@ export function AdminPage() {
                     
                     <div className="space-y-2">
                       <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">WhatsApp Direct Link</label>
-                      <input name="whatsappLink" defaultValue={settings.whatsappLink} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono text-zinc-600" />
+                      <input 
+                        name="whatsappLink" 
+                        value={settings.whatsappLink || ''} 
+                        onChange={(e) => setSettings({ ...settings, whatsappLink: e.target.value })}
+                        className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono text-zinc-600" 
+                      />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Instagram Perfil URL</label>
-                      <input name="instagramLink" defaultValue={settings.instagramLink} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono text-zinc-600" />
+                      <input 
+                        name="instagramLink" 
+                        value={settings.instagramLink || ''} 
+                        onChange={(e) => setSettings({ ...settings, instagramLink: e.target.value })}
+                        className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono text-zinc-600" 
+                      />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">TikTok Perfil URL</label>
-                      <input name="tiktokLink" defaultValue={settings.tiktokLink} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none" />
+                      <input 
+                        name="tiktokLink" 
+                        value={settings.tiktokLink || ''} 
+                        onChange={(e) => setSettings({ ...settings, tiktokLink: e.target.value })}
+                        className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none" 
+                      />
                     </div>
                   </div>
 
@@ -1213,7 +1284,7 @@ export function AdminPage() {
                       <h3 className="text-[9.5px] font-black uppercase tracking-widest text-zinc-400">03. Portadas del Carrusel Juvenil</h3>
                       <button 
                         type="button"
-                        onClick={() => setSettings(s => s ? { ...s, heroImages: [...(s.heroImages || []), ''] } : null)}
+                        onClick={() => setSettings(s => ({ ...s, heroImages: [...(s.heroImages || []), ''] }))}
                         className="text-[8px] font-black uppercase bg-black text-white px-3 py-1.5 rounded-xl text-center"
                       >
                         + AÑADIR DIAPOSITIVA (PORTADA/SLIDE)
@@ -1223,11 +1294,21 @@ export function AdminPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Título del Hero Banner</label>
-                        <input name="heroTitle" defaultValue={settings.heroTitle} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-black text-lg font-mono uppercase" />
+                        <input 
+                          name="heroTitle" 
+                          value={settings.heroTitle || ''} 
+                          onChange={(e) => setSettings({ ...settings, heroTitle: e.target.value })}
+                          className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-black text-lg font-mono uppercase" 
+                        />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Subtítulo del Hero Banner</label>
-                        <input name="heroSubtitle" defaultValue={settings.heroSubtitle} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-medium" />
+                        <input 
+                          name="heroSubtitle" 
+                          value={settings.heroSubtitle || ''} 
+                          onChange={(e) => setSettings({ ...settings, heroSubtitle: e.target.value })}
+                          className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-medium" 
+                        />
                       </div>
                     </div>
 
@@ -1280,12 +1361,22 @@ export function AdminPage() {
                       
                       <div className="space-y-1.5 col-span-1">
                         <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Número celular Yape</label>
-                        <input name="yapeNumber" defaultValue={settings.yapeNumber} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono font-bold" />
+                        <input 
+                          name="yapeNumber" 
+                          value={settings.yapeNumber || ''} 
+                          onChange={(e) => setSettings({ ...settings, yapeNumber: e.target.value })}
+                          className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-mono font-bold" 
+                        />
                       </div>
 
                       <div className="space-y-1.5 col-span-1">
                         <label className="text-[8.5px] font-black uppercase tracking-widest text-gray-400">Titular de Cuenta Yape</label>
-                        <input name="yapeTitular" defaultValue={settings.yapeTitular} className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-bold" />
+                        <input 
+                          name="yapeTitular" 
+                          value={settings.yapeTitular || ''} 
+                          onChange={(e) => setSettings({ ...settings, yapeTitular: e.target.value })}
+                          className="w-full bg-neutral-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-black outline-none font-bold" 
+                        />
                       </div>
 
                       <div className="space-y-1.5 col-span-1">
@@ -1360,7 +1451,8 @@ export function AdminPage() {
                       <input 
                         name="adminPassword" 
                         type="text" 
-                        defaultValue={settings.adminPassword} 
+                        value={settings.adminPassword || ''} 
+                        onChange={(e) => setSettings({ ...settings, adminPassword: e.target.value })}
                         className="w-full bg-white border border-red-200 rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-red-500 outline-none font-mono font-bold" 
                       />
                       <span className="text-[8px] text-zinc-400 uppercase tracking-widest italic pt-1 inline-block">Asegúrate de recordar este password para tus próximos accesos.</span>

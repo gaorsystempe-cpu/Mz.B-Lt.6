@@ -9,14 +9,49 @@ import { createClient } from "@supabase/supabase-js";
 // Initialize Supabase Client if credentials are provided in the environment
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_KEY || "";
+const supabaseSchema = process.env.SUPABASE_SCHEMA || "polo";
 const useSupabase = Boolean(supabaseUrl && supabaseKey);
 
 let supabase: any = null;
 if (useSupabase) {
-  console.log(`Connecting to Supabase at: ${supabaseUrl} (Default schema: public)`);
-  supabase = createClient(supabaseUrl, supabaseKey);
+  console.log(`Connecting to Supabase at: ${supabaseUrl} (Schema: ${supabaseSchema})`);
+  supabase = createClient(supabaseUrl, supabaseKey, {
+    db: {
+      schema: supabaseSchema
+    }
+  });
 } else {
   console.log("No Supabase configuration found. Using in-memory fallback database.");
+}
+
+// Table name resolver cache to support both prefix polo_ style and direct table name style under the customized schema
+const tableNameCache: Record<string, string> = {};
+
+async function resolveTableName(baseName: "products" | "orders" | "settings"): Promise<string> {
+  if (tableNameCache[baseName]) {
+    return tableNameCache[baseName];
+  }
+  
+  if (!supabase) return baseName;
+
+  // 1. Try prefixed name: e.g. polo_products, polo_orders, polo_settings
+  const prefixedName = `polo_${baseName}`;
+  try {
+    const { error } = await supabase.from(prefixedName).select("*").limit(1);
+    const hasError = error && (error.message?.includes("Could not find the table") || error.message?.includes("does not exist"));
+    if (!hasError) {
+      tableNameCache[baseName] = prefixedName;
+      console.log(`Supabase table resolved: schema '${supabaseSchema}', table '${prefixedName}'`);
+      return prefixedName;
+    }
+  } catch (err) {
+    // ignore and let it fall back
+  }
+
+  // 2. Fallback to base name: products, orders, settings
+  tableNameCache[baseName] = baseName;
+  console.log(`Supabase table resolved: schema '${supabaseSchema}', table '${baseName}'`);
+  return baseName;
 }
 
 
@@ -146,8 +181,9 @@ async function startServer() {
   app.get("/api/products", async (req, res) => {
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("products");
         const { data, error } = await supabase
-          .from("polo_products")
+          .from(table)
           .select("*")
           .order("created_at", { ascending: true });
         if (error) throw error;
@@ -167,8 +203,9 @@ async function startServer() {
     
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("products");
         const { data, error } = await supabase
-          .from("polo_products")
+          .from(table)
           .insert([newProduct])
           .select()
           .single();
@@ -189,8 +226,9 @@ async function startServer() {
     const id = req.params.id;
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("products");
         const { data, error } = await supabase
-          .from("polo_products")
+          .from(table)
           .update(req.body)
           .eq("id", id)
           .select()
@@ -222,8 +260,9 @@ async function startServer() {
     const id = req.params.id;
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("products");
         const { error } = await supabase
-          .from("polo_products")
+          .from(table)
           .delete()
           .eq("id", id);
         if (error) throw error;
@@ -253,8 +292,9 @@ async function startServer() {
   app.get("/api/orders", async (req, res) => {
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("orders");
         const { data, error } = await supabase
-          .from("polo_orders")
+          .from(table)
           .select("*")
           .order("createdAt", { ascending: false });
         if (error) throw error;
@@ -278,8 +318,9 @@ async function startServer() {
 
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("orders");
         const { data, error } = await supabase
-          .from("polo_orders")
+          .from(table)
           .insert([newOrder])
           .select()
           .single();
@@ -300,8 +341,9 @@ async function startServer() {
     const id = req.params.id;
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("orders");
         const { data, error } = await supabase
-          .from("polo_orders")
+          .from(table)
           .update(req.body)
           .eq("id", id)
           .select()
@@ -333,8 +375,9 @@ async function startServer() {
     const id = req.params.id;
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("orders");
         const { error } = await supabase
-          .from("polo_orders")
+          .from(table)
           .delete()
           .eq("id", id);
         if (error) throw error;
@@ -364,8 +407,9 @@ async function startServer() {
   app.get("/api/settings", async (req, res) => {
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("settings");
         let { data, error } = await supabase
-          .from("polo_settings")
+          .from(table)
           .select("*")
           .eq("id", "global_config")
           .maybeSingle();
@@ -373,7 +417,7 @@ async function startServer() {
         
         if (!data) {
           const { data: inserted, error: insError } = await supabase
-            .from("polo_settings")
+            .from(table)
             .insert([{ id: "global_config", ...settings }])
             .select()
             .single();
@@ -394,8 +438,9 @@ async function startServer() {
   app.put("/api/settings", async (req, res) => {
     if (useSupabase && supabase) {
       try {
+        const table = await resolveTableName("settings");
         const { data, error } = await supabase
-          .from("polo_settings")
+          .from(table)
           .update(req.body)
           .eq("id", "global_config")
           .select()
