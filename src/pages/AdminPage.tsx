@@ -128,29 +128,13 @@ export function AdminPage() {
     if (!settings) return;
     setLoading(true);
     try {
-      const formData = new FormData(e.currentTarget);
-      const heroImages = formData.getAll('heroImages') as string[];
-      const newSettings: Partial<AppSettings> = {
-        logoUrl: formData.get('logoUrl') as string,
-        brandName: formData.get('brandName') as string,
-        brandSubtitle: formData.get('brandSubtitle') as string,
-        heroTitle: formData.get('heroTitle') as string,
-        heroSubtitle: formData.get('heroSubtitle') as string,
-        heroImages: heroImages.filter(img => img.trim() !== ''),
-        qrCodeUrl: formData.get('qrCodeUrl') as string,
-        contactPhone: formData.get('contactPhone') as string,
-        whatsappLink: formData.get('whatsappLink') as string,
-        instagramLink: formData.get('instagramLink') as string,
-        tiktokLink: formData.get('tiktokLink') as string,
-        yapeNumber: formData.get('yapeNumber') as string,
-        yapeTitular: formData.get('yapeTitular') as string,
-        adminPassword: formData.get('adminPassword') as string,
-      };
-      const updated = await apiService.updateSettings(newSettings);
+      const cleanHeroImages = (settings.heroImages || []).filter(img => img && img.trim() !== '');
+      const settingsToSave = { ...settings, heroImages: cleanHeroImages };
+      const updated = await apiService.updateSettings(settingsToSave);
       setSettings(updated);
       alert("¡Configuración guardada súper exitosamente!");
     } catch (err) {
-      alert("Error al guardar ajustes");
+      alert("Error al guardar ajustes: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setLoading(false);
     }
