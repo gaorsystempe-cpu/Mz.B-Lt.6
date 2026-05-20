@@ -100,7 +100,7 @@ VALUES
   'https://instagram.com/',
   'https://tiktok.com/',
   'URBAN SOUL UNIT',
-  'MZ.B LT.6 • STREETWEAR AUTHENTIC',
+  'MZ.B LT.6 • TIENDA DE POLOS URBANOS',
   '["https://images.unsplash.com/photo-1558363420-281039867f73?auto=format&fit=crop&q=80&w=1600", "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&q=80&w=1600"]'::jsonb,
   '',
   'admin'

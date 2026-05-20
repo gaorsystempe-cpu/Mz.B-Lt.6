@@ -1218,7 +1218,7 @@ export default function App() {
 
   useEffect(() => {
     if (settings) {
-      document.title = `${settings.brandName} ${settings.brandSubtitle || ''} • Streetwear Authentic`.trim();
+      document.title = `${settings.brandName} ${settings.brandSubtitle || ''} • Tienda de Polos Urbanos`.trim();
     }
   }, [settings]);
 
